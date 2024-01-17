@@ -84,3 +84,7 @@ To format (you'll need `clang-format`):
 To see all available targets,
 
     $ make help
+
+### What is implemented
+
+**Lab0:** an in-memory byte stream class with a fix-sized capacity that allow senders to write a certain length of string and the receiver to read a certian length of string. File edited: `byte_stream.cc`, `byte_stream.hh`.

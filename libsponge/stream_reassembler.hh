@@ -57,6 +57,10 @@ class StreamReassembler {
     //! \brief Is the internal state empty (other than the output stream)?
     //! \returns `true` if no substrings are waiting to be assembled
     bool empty() const;
+
+    //! \brief Get the index of the next byte in the stream
+    //! \returns the index of the next byte in the stream
+    uint64_t next_index() const { return _next_index; }
 };
 
 #endif  // SPONGE_LIBSPONGE_STREAM_REASSEMBLER_HH

@@ -20,6 +20,12 @@ class TCPReceiver {
     //! The maximum number of bytes we'll store.
     size_t _capacity;
 
+    //! isn of the whole stream
+    std::optional<WrappingInt32> _isn = std::nullopt;
+
+    bool _is_fin = false;
+
+
   public:
     //! \brief Construct a TCP receiver
     //!

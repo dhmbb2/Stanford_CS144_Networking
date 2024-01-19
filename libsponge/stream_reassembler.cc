@@ -77,8 +77,8 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                 flag = true;
                 // ignore overplapping string
                 tmp_str = tmp_str.substr(_next_index - tmp_idx); 
-                _output.write(tmp_str);
-                _next_index += tmp_str.length();
+                num_written = _output.write(tmp_str);
+                _next_index += num_written;
                 _unassembled_bytes -= tmp_str.length();
                 it = _buffer.erase(it);
                 break;

@@ -10,36 +10,6 @@
 #include <queue>
 #include <vector>
 
-class Timer {
-      private:
-        TCPSegment _seg;
-
-        uint64_t _index;
-
-        uint64_t _RTO;
-
-        uint64_t _time;
-
-      public:
-        Timer() = default;
-        Timer(const TCPSegment seg, const uint64_t index, const uint64_t RTO, const uint64_t time)
-            : _seg(seg), _index(index), _RTO(RTO), _time(time) {}
-
-        TCPSegment seg() const { return _seg; }
-
-        uint64_t time() const { return _time; }
-
-        uint64_t rto() const { return _RTO; }
-
-        uint64_t index() const { return _index; }
-
-        void tick(const uint64_t ms_since_last_tick) { _time += ms_since_last_tick; }
-
-        void set_rto(uint64_t new_rto) { _RTO = new_rto; }
-
-        void reset() { _time = 0; }
-    };
-
 //! \brief The "sender" part of a TCP implementation.
 
 //! Accepts a ByteStream, divides it up into segments and sends the
@@ -48,6 +18,9 @@ class Timer {
 //! segments if the retransmission timer expires.
 class TCPSender {
   private:  
+    bool _is_syned = false;
+    bool _fin_sent = false;
+
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;
 
@@ -66,23 +39,26 @@ class TCPSender {
     //! time elapsed on account of tick() being called
     uint64_t _time{0};
 
-    //! a vector for timers containing outstanding segments
-    std::vector<Timer> _timers{};
+    //! a queue for timers containing outstanding segments
+    std::queue<TCPSegment> _outstanding{};
 
     unsigned int _consecutive_retransmissions{0};
 
-    uint64_t _window_size{0};
+    uint64_t _window_size{1};
 
-    // rto for consecutive retransmissions
+    //! rto for consecutive retransmissions
     uint64_t _rto;
+
+    uint64_t _ack_seqno{0};
+
+    uint64_t _bytes_in_flight{0};
 
     //! helper function: send a specific segment
     void _send_segment(TCPSegment& seg) {
-      seg.header().ackno = wrap(_next_seqno, _isn);
-      Timer seg_timer(seg, _next_seqno, _initial_retransmission_timeout, 0);
-      _window_size -= seg.length_in_sequence_space();
-      _timers.push_back(seg_timer);
+      seg.header().seqno = wrap(_next_seqno, _isn);
+      _outstanding.push(seg);
       _segments_out.push(seg);
+      _bytes_in_flight += seg.length_in_sequence_space();
       _next_seqno += seg.length_in_sequence_space();
     }
 

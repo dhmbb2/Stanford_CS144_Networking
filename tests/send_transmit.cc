@@ -101,7 +101,6 @@ int main() {
             TCPConfig cfg;
             WrappingInt32 isn(rd());
             cfg.fixed_isn = isn;
-
             TCPSenderTestHarness test{"Window filling", cfg};
             test.execute(ExpectSegment{}.with_no_flags().with_syn(true).with_payload_size(0).with_seqno(isn));
             test.execute(AckReceived{WrappingInt32{isn + 1}}.with_win(3));

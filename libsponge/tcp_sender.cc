@@ -3,6 +3,7 @@
 #include "tcp_config.hh"
 
 #include <random>
+#include <iostream>
 
 // Dummy implementation of a TCP sender
 
@@ -24,89 +25,98 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
     , _rto(retx_timeout) {}
 
 uint64_t TCPSender::bytes_in_flight() const { 
-    uint64_t ret = 0;
-    for (auto& t : _timers) {
-        ret += t.seg().length_in_sequence_space();
-    }
-    return ret;
+    return _bytes_in_flight;
 }
 
 void TCPSender::fill_window() {
-    // if syn is not sent yet
-    if (_next_seqno == 0) {
+    // std::cout << _next_seqno << '\n';
+    // if syn is not sent yet`
+    // std::cout << _window_size << '\n';
+    // cannot use _next_seqno as indicator of is_syn, this will cause problem if 
+    // syn is sent but nothing is acked.
+    if (!_is_syned) {
         TCPSegment seg;
         seg.header().syn = true;
+        _is_syned = true;
         _send_segment(seg);
         return;
     }
 
-    while (!_stream.buffer_empty() && !_window_size) {
+    uint64_t tmp_win_size = (_window_size == 0) ? 1 : _window_size;
+
+    uint64_t _availiable_win_size = tmp_win_size - (_next_seqno - _ack_seqno);
+
+    // fill window
+    while (!_stream.buffer_empty() && _availiable_win_size && !_fin_sent) {
         size_t send_len = min({
-            static_cast<size_t>(_window_size), 
+            static_cast<size_t>(_availiable_win_size), 
             TCPConfig::MAX_PAYLOAD_SIZE, 
             _stream.buffer_size()
         });
         TCPSegment seg;
         seg.payload() = _stream.read(send_len);
-        if (_stream.input_ended()) 
+        cout << seg.payload().str() << " "  << send_len << ' ' << _window_size  << '\n';
+        // Fin flag needs one byte, so add it to this segment only if window size is not zero.
+        if (_stream.eof() && _availiable_win_size-send_len) {
             seg.header().fin = true;
+            _fin_sent = true;
+        }
         _send_segment(seg);
+        // update avail_space
+        _availiable_win_size = tmp_win_size - (_next_seqno - _ack_seqno);
     }
 
-    // if window size = 0, we need to treat it as one
-    if (!_window_size) {
+    if (_stream.buffer_empty() && _availiable_win_size && _stream.eof() && !_fin_sent) {
         TCPSegment seg;
-        if (_stream.input_ended()) {
-            seg.header().fin = true;
-            _send_segment(seg);
-        } else {
-            seg.payload() = _stream.read(1);
-            _send_segment(seg);
-        }
+        seg.header().fin = true;
+        _fin_sent = true;
+        _send_segment(seg);
     }
 }
 
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
-    _window_size = window_size;
+    // remove imposible ackno
+    if (unwrap(ackno, _isn, _next_seqno) > _next_seqno) 
+       return;
 
-    vector<Timer> new_timers;
-    for (auto& t : _timers) {
-        if (t.index() + t.seg().length_in_sequence_space() <= unwrap(ackno, _isn, _next_seqno)) {
-            _consecutive_retransmissions = 0;
-            _rto = _initial_retransmission_timeout;
+    _window_size = window_size;
+    _ack_seqno = unwrap(ackno, _isn, _next_seqno);
+    bool received = false;
+
+    while (!_outstanding.empty()) {
+        TCPSegment seg = _outstanding.front();
+        if (unwrap(seg.header().seqno, _isn, _next_seqno) + seg.length_in_sequence_space() <= _ack_seqno) {
+            _outstanding.pop();
+            _bytes_in_flight -= seg.length_in_sequence_space();
+            received = true;
         } else {
-            new_timers.push_back(t);
+            break;
         }
     }
-    _timers = new_timers;
+
+    if (received) {
+        _time = 0;
+        _consecutive_retransmissions = 0;
+        _rto = _initial_retransmission_timeout;
+    }
     
-    if (window_size != 0)
-        fill_window();
+    fill_window();
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) { 
     _time += ms_since_last_tick;
+    std::cout << ms_since_last_tick << ' ' << _time << '\n';
 
-    Timer& seg_to_resend = _timers[0];
-    uint64_t min_index = std::numeric_limits<uint64_t>::max();
-
-    for (auto& t : _timers) {
-        t.tick(ms_since_last_tick);
-        if (t.time() > t.rto() && t.index() < min_index) {
-            seg_to_resend = t;
-            min_index = t.index();
+    if (_time >= _rto && !_outstanding.empty()) {
+        _segments_out.push(_outstanding.front());
+        _time = 0;
+        if (_window_size) {
+            _rto <<= 1;
+            _consecutive_retransmissions++;
         }
-    }
-    
-    if (min_index != std::numeric_limits<uint64_t>::max()) {
-        _segments_out.push(seg_to_resend.seg());
-        ++_consecutive_retransmissions;
-        _rto <<= 1;
-        seg_to_resend.set_rto(_rto);
-        seg_to_resend.reset();
     }
 }
 

@@ -21,6 +21,21 @@ class TCPConnection {
     //! in case the remote TCPConnection doesn't know we've received its whole stream?
     bool _linger_after_streams_finish{true};
 
+    bool _is_active = false;
+
+    //! send segments from sender's queue and fill the ackno and window size
+    void _send_segment() {
+      std::queue<TCPSegment> sender_segment_out = _sender.segments_out();
+      while (!sender_segment_out.empty()) {
+        TCPSegment seg = sender_segment_out.front();
+        sender_segment_out.pop();
+        seg.header().ack = true;
+        seg.header().ackno = _receiver.ackno().value();
+        seg.header().win = _receiver.window_size();
+        _segments_out.push(seg);
+      }
+    }
+
   public:
     //! \name "Input" interface for the writer
     //!@{

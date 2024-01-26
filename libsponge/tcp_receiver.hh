@@ -26,7 +26,7 @@ class TCPReceiver {
     bool _is_fin = false;
 
 
-  public:
+public:
     //! \brief Construct a TCP receiver
     //!
     //! \param capacity the maximum number of bytes that the receiver will
@@ -67,6 +67,11 @@ class TCPReceiver {
     ByteStream &stream_out() { return _reassembler.stream_out(); }
     const ByteStream &stream_out() const { return _reassembler.stream_out(); }
     //!@}
+
+    //! \brief If the receiver is listening for input
+    bool is_syned() {
+        return _isn.has_value();
+    }
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_RECEIVER_HH

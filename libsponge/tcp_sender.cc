@@ -55,7 +55,7 @@ void TCPSender::fill_window() {
         });
         TCPSegment seg;
         seg.payload() = _stream.read(send_len);
-        cout << seg.payload().str() << " "  << send_len << ' ' << _window_size  << '\n';
+        // cout << seg.payload().str() << " "  << send_len << ' ' << _window_size  << '\n';
         // Fin flag needs one byte, so add it to this segment only if window size is not zero.
         if (_stream.eof() && _availiable_win_size-send_len) {
             seg.header().fin = true;
@@ -108,7 +108,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) { 
     _time += ms_since_last_tick;
-    std::cout << ms_since_last_tick << ' ' << _time << '\n';
+    // std::cout << ms_since_last_tick << ' ' << _time << '\n';
 
     if (_time >= _rto && !_outstanding.empty()) {
         _segments_out.push(_outstanding.front());

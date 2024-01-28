@@ -72,6 +72,11 @@ public:
     bool is_syned() {
         return _isn.has_value();
     }
+
+    //! \brief If the inbound stream has fully ended and assembled
+    bool inbound_ended() {
+        return stream_out().input_ended() && unassembled_bytes() == 0;
+    }
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_RECEIVER_HH

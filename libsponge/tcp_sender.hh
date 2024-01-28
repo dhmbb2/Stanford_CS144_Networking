@@ -118,7 +118,15 @@ class TCPSender {
     WrappingInt32 next_seqno() const { return wrap(_next_seqno, _isn); }
     //!@}
 
-    size_t get_time() const { return _time; }
+    //! \brief check if outbound stream has ended
+    bool outbound_ended() {
+      return _stream.eof() && _fin_sent;
+    }
+
+    //! \brief check if the peer has acknowlwdge each segement
+    bool outbound_acknowledged() {
+      return bytes_in_flight() == 0;
+    }
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH

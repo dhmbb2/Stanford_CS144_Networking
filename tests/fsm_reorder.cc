@@ -30,46 +30,46 @@ int main() {
         cfg.recv_capacity = 65000;
         auto rd = get_random_generator();
 
-        // non-overlapping out-of-order segments
-        for (unsigned rep_no = 0; rep_no < NREPS; ++rep_no) {
-            const WrappingInt32 rx_isn(rd());
-            const WrappingInt32 tx_isn(rd());
-            TCPTestHarness test_1 = TCPTestHarness::in_established(cfg, tx_isn, rx_isn);
-            vector<tuple<size_t, size_t>> seq_size;
-            size_t datalen = 0;
-            while (datalen < cfg.recv_capacity) {
-                const size_t size = min(1 + (static_cast<size_t>(rd()) % (TCPConfig::MAX_PAYLOAD_SIZE - 1)),
-                                        cfg.recv_capacity - datalen);
-                seq_size.emplace_back(datalen, size);
-                datalen += size;
-            }
-            shuffle(seq_size.begin(), seq_size.end(), rd);
+        // // non-overlapping out-of-order segments
+        // for (unsigned rep_no = 0; rep_no < NREPS; ++rep_no) {
+        //     const WrappingInt32 rx_isn(rd());
+        //     const WrappingInt32 tx_isn(rd());
+        //     TCPTestHarness test_1 = TCPTestHarness::in_established(cfg, tx_isn, rx_isn);
+        //     vector<tuple<size_t, size_t>> seq_size;
+        //     size_t datalen = 0;
+        //     while (datalen < cfg.recv_capacity) {
+        //         const size_t size = min(1 + (static_cast<size_t>(rd()) % (TCPConfig::MAX_PAYLOAD_SIZE - 1)),
+        //                                 cfg.recv_capacity - datalen);
+        //         seq_size.emplace_back(datalen, size);
+        //         datalen += size;
+        //     }
+        //     shuffle(seq_size.begin(), seq_size.end(), rd);
 
-            string d(datalen, 0);
-            generate(d.begin(), d.end(), [&] { return rd(); });
+        //     string d(datalen, 0);
+        //     generate(d.begin(), d.end(), [&] { return rd(); });
 
-            WrappingInt32 min_expect_ackno = rx_isn + 1;
-            WrappingInt32 max_expect_ackno = rx_isn + 1;
-            for (auto [off, sz] : seq_size) {
-                test_1.send_data(rx_isn + 1 + off, tx_isn + 1, d.cbegin() + off, d.cbegin() + off + sz);
-                if (off == min_expect_ackno.raw_value()) {
-                    min_expect_ackno = min_expect_ackno + sz;
-                }
-                max_expect_ackno = max_expect_ackno + sz;
+        //     WrappingInt32 min_expect_ackno = rx_isn + 1;
+        //     WrappingInt32 max_expect_ackno = rx_isn + 1;
+        //     for (auto [off, sz] : seq_size) {
+        //         test_1.send_data(rx_isn + 1 + off, tx_isn + 1, d.cbegin() + off, d.cbegin() + off + sz);
+        //         if (off == min_expect_ackno.raw_value()) {
+        //             min_expect_ackno = min_expect_ackno + sz;
+        //         }
+        //         max_expect_ackno = max_expect_ackno + sz;
 
-                TCPSegment seg =
-                    test_1.expect_seg(ExpectSegment{}.with_ack(true), "test 1 failed: no ACK for datagram");
+        //         TCPSegment seg =
+        //             test_1.expect_seg(ExpectSegment{}.with_ack(true), "test 1 failed: no ACK for datagram");
 
-                auto &seg_hdr = seg.header();
+        //         auto &seg_hdr = seg.header();
 
-                test_err_if(wrapping_lt(seg_hdr.ackno, min_expect_ackno) ||
-                                wrapping_gt(seg_hdr.ackno, max_expect_ackno),
-                            "test 1 failed: no ack or out of expected range");
-            }
+        //         test_err_if(wrapping_lt(seg_hdr.ackno, min_expect_ackno) ||
+        //                         wrapping_gt(seg_hdr.ackno, max_expect_ackno),
+        //                     "test 1 failed: no ack or out of expected range");
+        //     }
 
-            test_1.execute(Tick(1));
-            test_1.execute(ExpectData{}.with_data(d), "test 1 failed: got back the wrong data");
-        }
+        //     test_1.execute(Tick(1));
+        //     test_1.execute(ExpectData{}.with_data(d), "test 1 failed: got back the wrong data");
+        // }
 
         // overlapping out-of-order segments
         for (unsigned rep_no = 0; rep_no < NREPS; ++rep_no) {

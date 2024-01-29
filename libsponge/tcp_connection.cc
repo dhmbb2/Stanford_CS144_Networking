@@ -27,8 +27,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     TCPHeader header = seg.header();
 
     // If ret is set, then end both inbound and outbound streams
-    if (seg.header().rst) 
+    if (seg.header().rst) {
         _abort();
+        return;
+    }
 
     _receiver.segment_received(seg);
 
@@ -69,16 +71,20 @@ size_t TCPConnection::write(const string &data) {
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
 void TCPConnection::tick(const size_t ms_since_last_tick) {
     _sender.tick(ms_since_last_tick);
-    // in case of retransmission, send here
-        _send_segment();
     _time_since_last_segment_received += ms_since_last_tick; 
 
     if (_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS) {
+        // first empty _sender's segment_out
+        _sender.segments_out().pop();
         //abort the connection
         _abort();
         // send a rst to the peer
         _send_rst();
     }
+    
+    // in case of retransmission, send here
+    // remember to check if consecutive retransmission exceed configed number, then send
+    _send_segment();
 
     _clean_shutdown();
 }
@@ -112,8 +118,8 @@ bool TCPConnection:: _send_segment() {
 }
 
 void TCPConnection::_abort() {
-    _sender.stream_in().error();
-    _receiver.stream_out().error();
+    _sender.stream_in().set_error();
+    _receiver.stream_out().set_error();
     _is_active = false;
 }
 

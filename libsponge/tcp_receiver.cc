@@ -29,9 +29,21 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     if (header.fin && !_is_fin)
         _is_fin = true;
 
+    size_t index = unwrap(header.seqno, *_isn, _reassembler.next_index());
+
+    // is the segment's seqno is larger than window size, just ignore it
+    if (index > _reassembler.next_index() + window_size())
+        return;
+
+    // corner case where syn's seqno has value
+    if (index == 0) 
+        data = (data.length() < 2) ? "" : data.substr(1);
+    else 
+        index -= 1; // minus syn's seqno
+
     _reassembler.push_substring (
         data, 
-        unwrap(header.seqno, *_isn, _reassembler.next_index()) - 1, 
+        index, 
         header.fin
     );
 

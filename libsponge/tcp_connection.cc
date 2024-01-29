@@ -30,18 +30,18 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     if (seg.header().rst) 
         _abort();
 
+    _receiver.segment_received(seg);
+
     // check if no need to linger
     if (_receiver.inbound_ended() && !_sender.outbound_ended()) {
         _linger_after_streams_finish = false;
     }
 
-    _receiver.segment_received(seg);
-
     bool is_sent = false;
     // if ack is set, then tell sender about the features in interest
     if (header.ack) {
         _sender.ack_received(header.ackno, header.win);
-        is_sent = _send_segment();
+        _send_segment();
     }
 
     if (seg.length_in_sequence_space() > 0) {
@@ -58,7 +58,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 bool TCPConnection::active() const { return _is_active; }
 
 size_t TCPConnection::write(const string &data) {
-    ByteStream stream = _sender.stream_in();
+    ByteStream &stream = _sender.stream_in();
     
     size_t ret = stream.write(data);
     _sender.fill_window();
@@ -69,6 +69,8 @@ size_t TCPConnection::write(const string &data) {
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
 void TCPConnection::tick(const size_t ms_since_last_tick) {
     _sender.tick(ms_since_last_tick);
+    // in case of retransmission, send here
+        _send_segment();
     _time_since_last_segment_received += ms_since_last_tick; 
 
     if (_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS) {
@@ -82,7 +84,9 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
 }
 
 void TCPConnection::end_input_stream() {
-    _sender.stream_in().input_ended();
+    _sender.stream_in().end_input();
+    _sender.fill_window();
+    _send_segment();
 }
 
 void TCPConnection::connect() {
@@ -92,14 +96,16 @@ void TCPConnection::connect() {
 
 bool TCPConnection:: _send_segment() { 
     bool is_sent = false;
-    std::queue<TCPSegment> sender_segment_out = _sender.segments_out();
+    std::queue<TCPSegment>& sender_segment_out = _sender.segments_out();
     while (!sender_segment_out.empty()) {
         is_sent = true;
         TCPSegment seg = sender_segment_out.front();
         sender_segment_out.pop();
-        seg.header().ack = true;
-        seg.header().ackno = _receiver.ackno().value();
-        seg.header().win = _receiver.window_size();
+        if (_receiver.ackno().has_value()) {
+            seg.header().ack = true;
+            seg.header().ackno = _receiver.ackno().value();
+            seg.header().win = _receiver.window_size();
+        }
         _segments_out.push(seg);
     }
     return is_sent;
@@ -118,8 +124,10 @@ void TCPConnection::_send_rst() {
     // some segment, the empty segment must be at the front
     TCPSegment seg = _sender.segments_out().front();
     _sender.segments_out().pop();
-    seg.header().ackno = _receiver.ackno().value();
-    seg.header().win = _receiver.window_size();
+    if (_receiver.ackno().has_value()) {
+        seg.header().ackno = _receiver.ackno().value();
+        seg.header().win = _receiver.window_size(); 
+    }
     seg.header().rst = true;
     _segments_out.push(seg);
 }
@@ -132,7 +140,7 @@ void TCPConnection::_clean_shutdown() {
         return;
     
     if (_linger_after_streams_finish && 
-        _time_since_last_segment_received > 10 * _cfg.rt_timeout)
+        _time_since_last_segment_received >= 10 * _cfg.rt_timeout)
         _is_active = false;
 
     if (!_linger_after_streams_finish)

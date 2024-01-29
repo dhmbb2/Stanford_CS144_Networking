@@ -23,7 +23,7 @@ class TCPConnection {
 
     size_t _time_since_last_segment_received = 0;
 
-    bool _is_active = false;
+    bool _is_active = true;
 
     //! send segments from sender's queue and fill the ackno and window size
     bool _send_segment();

@@ -106,7 +106,11 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
-void TCPSender::tick(const size_t ms_since_last_tick) { 
+void TCPSender::tick(const size_t ms_since_last_tick) {
+    // if nothing to resend, just return 
+    if (_outstanding.empty())
+        return;
+        
     _time += ms_since_last_tick;
     // std::cout << ms_since_last_tick << ' ' << _time << '\n';
 

@@ -24,7 +24,7 @@ class StreamReassembler {
     bool _eof = false;
     std::list<std::tuple<size_t, std::string>> _buffer{};
 
-    void _update_unassembled_capacity() { _unassembled_capacity = _output.remaining_capacity()- _unassembled_bytes;}   
+    void _update_unassembled_capacity() { _unassembled_capacity = _output.remaining_capacity()- _unassembled_bytes;} 
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
